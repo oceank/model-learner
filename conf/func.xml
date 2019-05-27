@@ -1,0 +1,41 @@
+<functions>
+  <function name="f1">
+    <type>hidden</type>
+    <locked>0</locked>
+    <expression>x ^ 3 + y</expression>
+    <option name="x">
+      <default>1</default>
+      <values>1,2,3,4</values>
+      <integer>1</integer>
+      <lowerbound>1</lowerbound>
+      <upperbound>10</upperbound>
+      <step>1</step>
+    </option>
+    <noise>10^-5</noise>
+    <query>10</query>
+    <budget>100</budget>
+    <owner>LL</owner>
+    <evallatency>10</evallatency>
+  </function>
+  <function name="f2">
+    <type>learned</type>
+    <locked>0</locked>
+    <expression>2 * x + y</expression>
+    <option name="x">
+      <default>1</default>
+      <values>0,20</values>
+      <integer>1</integer>
+      <lowerbound>0</lowerbound>
+      <upperbound>20</upperbound>
+      <step>2</step>
+    </option>
+    <option name="y">
+      <default>1</default>
+      <values>0.1,0.2,0.3</values>
+      <integer>0</integer>
+      <lowerbound>0</lowerbound>
+      <upperbound>1</upperbound>
+    </option>
+    <owner>CMU-robotics</owner>
+  </function>
+</functions>

@@ -1,0 +1,6 @@
+nose
+sphinx
+sklearn
+pyDOE
+sympy
+scipy
