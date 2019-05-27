@@ -1,9 +1,6 @@
 import os
 import random
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from keras import backend as K
 
 
@@ -227,55 +224,11 @@ class DQNLearner:
                 for r in allRewards:
                     f.write(str(r)+"\n")
 
-            print("===Ploting the average performance===")
-            allIters = np.arange(totalIters) + 1
-
-            expandedAvePerfs=[]
-            for p, i in zip(avePerfs, itersPerEpoch):
-                expandedAvePerfs.extend([p]*i)
-            self.curvePlot2(allIters, allPerfs, allIters, expandedAvePerfs, "Iteration", "Performance of Power Model", os.path.join(self.resultDir, "Ave_Perf_Per_Epoch.png"), ["per_iteration", "per_epoch"], "")
-
-            expandedAveRewards=[]
-            for r, i in zip(aveRewards, itersPerEpoch):
-                expandedAveRewards.extend([r]*i)
-            self.curvePlot2(allIters, allRewards, allIters, expandedAveRewards, "Iteration", "Reward", os.path.join(self.resultDir, "Ave_Reward_Per_Episode.png"), ["per_iteration", "per_epoch"], "")
-
-            self.curvePlot(np.arange(numEpochs)+1, avePGPs, "Epoch", "Ave Perf Gap Percent", os.path.join(self.resultDir, "Ave_Perf_Gap_Percent.png"), "")
-            
+           
         # Save the DQN predict model
         self.agent.predictModel.save(self.DQNModelFilepath)
         # Return the performance of all sampled configurations
         return allPerfs
 
 
-    def curvePlot(self, xs, ys, xlabel, ylabel, outputfile, title):
-            print("\t[curvePlot] ploting " + outputfile)
 
-            plt.plot(xs, ys,'-o')
-            plt.xlabel(xlabel, fontsize=18)
-            plt.ylabel(ylabel, fontsize=18)
-            plt.xticks(fontsize=16)
-            plt.yticks(fontsize=16)
-            plt.title(title)
-            plt.tight_layout()
-            plt.savefig(outputfile)
-            plt.close()
-            print("\tploting finished!")
-
-
-    def curvePlot2(self, x1, y1, x2, y2, xlabel, ylabel, outputfile, linetags, title):
-            print("\t[curvePlot] ploting " + outputfile)
-
-            plt.plot(x1, y1, '-.', label=linetags[0])
-            plt.plot(x2, y2, '-o', label=linetags[1])
-            plt.xlabel(xlabel, fontsize=18)
-            plt.ylabel(ylabel, fontsize=18)
-            plt.xticks(fontsize=16)
-            plt.yticks(fontsize=16)
-            plt.title(title)
-            plt.legend(loc='upper left', fontsize=18)
-            plt.tight_layout()
-            plt.savefig(outputfile)
-            plt.close()
-            print("\tploting finished!")
- 
