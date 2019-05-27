@@ -84,6 +84,7 @@ class DQNLearner:
 
     # use testSystem to initialize Replay Memory
     def initializeReplayMemory(self, testSystem):
+        print("[DQN - initialize Replay Memory]")
         memoryCnt = 0
         while memoryCnt < self.memoryInitSize:
             state=self.getARandomConfig()
@@ -93,12 +94,13 @@ class DQNLearner:
             reward = self.rewardCal(perf, newPerf)
             if self.agent.remember(state, action, reward, nextState):
                 memoryCnt += 1 # it is a new experience
-                print("[Initialize Replay Memory] SampleID {0:5d} : Reward - {1}.".format(memoryCnt, reward))
+                if self.isDebug:
+                    print("SampleID {0:5d} : Reward - {1}.".format(memoryCnt, reward))
        
 
     # DQN agent learns the good/optimal policies in the system
     def learning(self, totalIters = 1000, iterRatioFirstEpoch = 0.1, iterRatioLastEpoch = 0.05, numEpochs = 50):
-        
+        print("[DQN - learning]")
         # set up learning strategy 
         itersFirstEpoch = int(totalIters*iterRatioFirstEpoch)
         itersLastEpoch = int(totalIters*iterRatioLastEpoch)
@@ -145,6 +147,7 @@ class DQNLearner:
 
         # DQN learning process
         for e in range(numEpochs):
+            print("DQN learning: Epoch " + str(e))
             if self.isDebug:
                 currentEpochRewards=[]
                 sumPGPs = 0
@@ -181,12 +184,12 @@ class DQNLearner:
                 # update the prediction network
                 self.agent.replay()
 
-            avePGPs.append(round(sumPGPs/numIters, 4))
             allPerfs.extend(currentEpochPerfs)
             self.agent.updateTargetModel()
 
 
             if self.isDebug:
+                avePGPs.append(round(sumPGPs/numIters, 4))
                 allRewards.extend(currentEpochRewards)
                 with open(os.path.join(self.resultDir, "performence_in_epoch_"+str(e)), "w+") as f:
                     currentAvePerf=0.0
