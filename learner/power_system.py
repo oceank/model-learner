@@ -23,7 +23,7 @@ class powerSystem:
                 for term in terms:
                     parts=term.split("*")
                     if len(parts)==1: # It is a constant. Assume there are at most 1 constant
-                        model[(-1)] = float(parts[0])
+                        model[tuple([-1])] = float(parts[0])
                     else:
                         weight=parts[0]
                         opList=parts[1:]
@@ -49,7 +49,6 @@ class powerSystem:
                         value = 0
                         break
             perf += value
-
         return perf
 
 
