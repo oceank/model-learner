@@ -46,6 +46,7 @@ class Learn:
         self.default_conf = np.reshape(np.zeros(ndim), (1, ndim))
         self.learned_model_filepath = os.path.join(learned_model_path, learned_model_name)
         self.true_model_filepath = os.path.join(model_path, self.model_name)
+        self.config_list_file = config_list_file
         self.true_power_model = None
         self.learned_power_model = None
         self.learned_model = None
@@ -76,7 +77,7 @@ class Learn:
             raise Exception(e)
 
     # Assumption: the learned power model is already dumpped
-    def initialize_DQN_learner(self, budget):
+    def initialize_DQN_learner(self):
         learned_system = powerSystem(self.learned_model_filepath, opIDs)
         system = powerSystem(self.true_model_filepath, opIDs)
         
