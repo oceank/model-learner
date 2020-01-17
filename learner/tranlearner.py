@@ -12,10 +12,10 @@ class TranLearner:
 
     def __init__(self, budget, num_dims, true_power_model):
 
-        self.offline_budget_ratio = 0.5
+        self.offline_budget_ratio = 1.0 #0.5
         self.offline_budget = int(budget * self.offline_budget_ratio)
-        if self.offline_budget > 200:
-            self.offline_budget = 200
+        #if self.offline_budget > 200:
+        #    self.offline_budget = 200
 
         self.online_budget  = budget - self.offline_budget
         self.used_budget    = 0
@@ -162,12 +162,16 @@ class TranLearner:
             num_init = 50
         budget = self.offline_budget - num_init
 
+        '''
         if self.offline_budget <= 100:
             model_update_interval = 1
         elif (self.offline_budget > 100) and (self.offline_budget <= 200):
             model_update_interval = 2
         else:
             model_update_interval = 5
+        '''
+
+        model_update_interval = 1
 
         num_iters = budget // model_update_interval
 
