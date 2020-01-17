@@ -11,6 +11,7 @@ class ReadyDB:
     def get_budget(self):
         return self.db["discharge-budget"]
 
+
     def get_baseline(self):
         if self.db["level"] == "a":
             return AdaptationLevel.BASELINE_A
@@ -18,6 +19,10 @@ class ReadyDB:
             return AdaptationLevel.BASELINE_B
         elif self.db["level"] == "c":
             return AdaptationLevel.BASELINE_C
+        elif self.db["level"] == "d":
+            return AdaptationLevel.BASELINE_D
+
+
 
     def get_power_model(self):
         return "model" + str(self.db["power-model"])

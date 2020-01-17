@@ -8,28 +8,25 @@ from learner.mlearner import MLearner
 from learner.model import genModelTermsfromString, Model, genModelfromCoeff
 from learner.ready_db import ReadyDB
 from learner.lib import *
+from learner.constants import AdaptationLevel
 
-# used for DQN learning 
-from learner.power_system import powerSystem
-from learner.DQN_agent import DQNAgent
-from learner.DQN_learner import DQNLearner
- 
+from learner.tranlearner import TranLearner
+
 model_path = os.path.expanduser("~/catkin_ws/src/cp1_base/power_models/")
 learned_model_path = os.path.expanduser("~/cp1/")
 config_list_file = os.path.expanduser('~/cp1/config_list.json')
 config_list_file_true = os.path.expanduser('~/cp1/config_list_true.json')
 ready_json = os.path.expanduser("~/ready")
 learned_model_name = 'learned_model'
-DQN_result_dir = os.path.expanduser("~/cp1/")
+used_budget_report_path = os.path.expanduser("~/cp1/used_budget")
 
 ndim = 20
 test_size = 10000
 mu, sigma = 0, 0.1
 speed_list = [0.15, 0.3, 0.6]
 
-# For DQN learning #
-update_batch_size = 32 # number of samples used in memory replay in DQN learning
-exploration_bonus = 0 # used by exploration function (EF). 0 means that EF is disabled.
+offline_learning_budget_ratio = 0.2
+
 opIDs={}
 numOfOptions=20
 for i in range(numOfOptions):
@@ -41,17 +38,19 @@ class Learn:
     def __init__(self):
         self.ready = ReadyDB(ready_db=ready_json)
         self.budget = self.ready.get_budget()
-        self.left_budget = self.budget
+        self.used_budget = 0
         self.model_name = self.ready.get_power_model()
-        self.default_conf = np.reshape(np.zeros(ndim), (1, ndim))
+        default_conf = np.concatenate((np.zeros(int(ndim/2)), np.ones(ndim-int(ndim/2))))
+        self.default_conf = np.reshape(default_conf, (1, ndim))
         self.learned_model_filepath = os.path.join(learned_model_path, learned_model_name)
         self.true_model_filepath = os.path.join(model_path, self.model_name)
         self.config_list_file = config_list_file
+        self.config_list_file_true = config_list_file_true
         self.true_power_model = None
         self.learned_power_model = None
         self.learned_model = None
         self.learner = None
-        self.DQN_learner = None
+       
 
     def get_true_model(self):
         try:
@@ -65,70 +64,38 @@ class Learn:
         except Exception as e:
             raise Exception(e)
 
+    # For case c and case d (offline learning)
     def start_learning(self):
 
         # learn the model
         try:
-            model_learning_budget = int(0.1*self.left_budget)
-            self.left_budget -= model_learning_budget
-            self.learner = MLearner(model_learning_budget, ndim, self.true_power_model)
-            self.learned_model = self.learner.discover()
+            if self.ready.get_baseline() == AdaptationLevel.BASELINE_C:
+                self.learner = MLearner(self.budget, ndim, self.true_power_model)
+                self.learned_model = self.learner.discover()
+                self.used_budget = self.budget
+            elif self.ready.get_baseline() == AdaptationLevel.BASELINE_D:
+                self.learner = TranLearner(self.budget, ndim, self.true_power_model)
+                self.learned_model = self.learner.offline_learning()
+                self.used_budget = self.learner.used_budget
+
+            with open(used_budget_report_path, "w") as fp:
+                fp.write(str(self.used_budget))
         except Exception as e:
             raise Exception(e)
 
-    # Assumption: the learned power model is already dumpped
-    def initialize_DQN_learner(self):
-        learned_system = powerSystem(self.learned_model_filepath, opIDs)
-        system = powerSystem(self.true_model_filepath, opIDs)
-        
-        input_layer_size = system.numOfOptions
-        output_layer_size = system.numOfOptions
+    # For case d
+    def start_online_learning(self):
+        try:
+            self.learned_model = self.learner.online_learning()
+            self.used_budget = self.learner.used_budget
+            with open(used_budget_report_path, "w") as fp:
+                fp.write(str(self.used_budget))
+        except Exception as e:
+            raise Exception(e)
 
-        agent = DQNAgent(input_layer_size, output_layer_size, exploration_bonus, update_batch_size,
-                numOfOptionsToChangePerAction=1, numOfOptionsToChangeByGreedyPerAction=1)
-        self.DQN_learner = DQNLearner(agent, system, DQN_result_dir, isDebug=False)
-
-        # Initialize Replay Memory by using the learned system
-        self.DQN_learner.initializeReplayMemory(learned_system)
-
-
-    # Assumption: the self.DQN_learner has been intialized
-    # Have DQN agent to learn and finally dump Pareto-optimial configurations
-    def DQN_learning(self, budget):
-        if self.left_budget < budget:
-            raise Exception("[DQN Learning Error] The left budget ({0}) in learner is smaller the requested one {1}."
-                    .format(self.left_budget, budget))
-
-        yTestPower = self.DQN_learner.learning(totalIters = budget)
-
-        # adding noise for the speed
-        s = np.random.uniform(mu, sigma, budget)
-
-        yTestSpeed = np.zeros(budget)
-        for i in range(budget):
-            yTestSpeed[i] = speed_list[i % len(speed_list)]
-
-        yTestSpeed = yTestSpeed + s
-
-        yDefaultPower = abs(self.learned_model.predict(self.default_conf))
-        yDefaultSpeed = speed_list[2]
-
-        idx_pareto, pareto_power, pareto_speed = self.learner.get_pareto_frontier(yTestPower, yTestSpeed, maxX=False, maxY=True)
-        json_data = get_json(pareto_power, pareto_speed)
-
-        # add the default configuration
-        json_data['configurations'].append({
-            'config_id': 0,
-            'power_load': yDefaultPower[0]/3600*1000,
-            'power_load_w': yDefaultPower[0],
-            'speed': yDefaultSpeed
-        })
-        with open(config_list_file, 'w') as outfile:
-            json.dump(json_data, outfile)
-
-        self.left_budget -= budget
-
+    # For case c
     def dump_learned_model(self):
+ 
         """dumps model in ~/cp1/"""
 
         try:
@@ -142,12 +109,17 @@ class Learn:
         with open(self.learned_model_filepath, 'w') as model_file:
             model_file.write(self.learned_power_model.__str__())
 
+
+    def update_config_files(self):
+
         # configs = itertools.product(range(2), repeat=ndim)
         # xTest = np.zeros(shape=(2**ndim, ndim))
         # i = 0
         # for c in configs:
         #     xTest[i, :] = np.array(c)
         #     i += 1
+
+        test_size = 10000
 
         xTest = np.random.randint(2, size=(test_size, ndim))
 
@@ -157,7 +129,24 @@ class Learn:
                 break
 
         # to avoid negative power load
-        yTestPower = abs(self.learned_model.predict(xTest))
+        if self.ready.get_baseline() == AdaptationLevel.BASELINE_C: 
+            yTestPower = abs(self.learned_model.predict(xTest))
+        if self.ready.get_baseline() == AdaptationLevel.BASELINE_D:
+            predY, predYStd = self.learned_model.predict(xTest, with_noise=False)
+            predY = np.ravel(predY)
+            predYStd = np.ravel(predYStd)
+
+            halfIntervals = 1.729*predYStd
+            goodIndices = np.where(predY>halfIntervals)
+
+            xTest       = xTest[goodIndices]
+            test_size   = xTest.shape[0]
+            
+            predY       = predY[goodIndices]
+            predYStd    = predYStd[goodIndices]
+            yTestPower  = predY
+ 
+        
         yTestPower_true = self.true_power_model.evaluateModelFast(xTest)
 
         # adding noise for the speed
@@ -169,11 +158,18 @@ class Learn:
 
         yTestSpeed = yTestSpeed + s
 
-        yDefaultPower = abs(self.learned_model.predict(self.default_conf))
+        if self.ready.get_baseline() == AdaptationLevel.BASELINE_C:
+            yDefaultPower = abs(self.learned_model.predict(self.default_conf))
+        elif self.ready.get_baseline() == AdaptationLevel.BASELINE_D:
+            defaultPredY, defaultPredYVar = self.learned_model.predict(self.default_conf, with_noise=False)
+            yDefaultPower = defaultPredY
+            yDefaultPower = abs(np.ravel(yDefaultPower))
+
         yDefaultPower_true = self.true_power_model.evaluateModelFast(self.default_conf)
         yDefaultSpeed = speed_list[2]
 
         idx_pareto, pareto_power, pareto_speed = self.learner.get_pareto_frontier(yTestPower, yTestSpeed, maxX=False, maxY=True)
+
         json_data = get_json(pareto_power, pareto_speed)
 
         json_data_true_model = get_json([yTestPower_true[i] for i in idx_pareto], [yTestSpeed[i] for i in idx_pareto])
@@ -185,8 +181,10 @@ class Learn:
             'power_load_w': yDefaultPower[0],
             'speed': yDefaultSpeed
         })
-        with open(config_list_file, 'w') as outfile:
+        with open(self.config_list_file, 'w') as outfile:
             json.dump(json_data, outfile)
+            print("\n**Predicted**")
+            print(json_data)
 
         json_data_true_model['configurations'].append({
             'config_id': 0,
@@ -196,5 +194,29 @@ class Learn:
         })
         with open(config_list_file_true, 'w') as outfile:
             json.dump(json_data_true_model, outfile)
+            print("\n**True**")
+            print(json_data_true_model)
 
 
+
+    def dump_true_default_config(self):
+        '''
+            Write the default config based on the true model for case A and case B.
+            Write into config_list_true.json
+        '''
+
+        yDefaultPower_true = self.true_power_model.evaluateModelFast(self.default_conf)
+        yDefaultSpeed = speed_list[2]
+        json_data_true_model = {}
+        json_data_true_model['configurations'] = []
+        json_data_true_model['configurations'].append({
+            'config_id': 0,
+            'power_load': yDefaultPower_true[0]/3600*1000,
+            'power_load_w': yDefaultPower_true[0],
+            'speed': yDefaultSpeed
+        })
+        with open(self.config_list_file_true, 'w') as outfile:
+            json.dump(json_data_true_model, outfile)
+
+    def has_budget(self):
+        return self.budget > self.used_budget
